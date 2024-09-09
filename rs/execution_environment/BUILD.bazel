@@ -108,7 +108,7 @@ rust_library(
 
 rust_ic_test(
     name = "execution_environment_test",
-    timeout = "eternal",  # TODO: cleanup debug code.
+    timeout = "long",
     aliases = ALIASES,
     crate = ":execution_environment",
     data = DATA,
@@ -124,7 +124,7 @@ rust_ic_test(
 
 rust_ic_test_suite(
     name = "execution_environment_misc_integration",
-    size = "large",
+    size = "enormous",   # TODO: cleanup debug code.
     srcs = glob(["tests/*.rs"]),
     aliases = ALIASES,
     compile_data = glob(["tests/test-data/**"]),
