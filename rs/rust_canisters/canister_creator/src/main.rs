@@ -130,7 +130,7 @@ async fn spinup_canister(wasm_module: Vec<u8>, arg: Vec<u8>) {
     match result {
         Ok(reply) => {
             let canister_id = Decode!(&reply, CanisterIdRecord).unwrap().get_canister_id();
-            add_canister_id(canister_id);
+            //add_canister_id(canister_id);
             if !wasm_module.is_empty() {
                 let _ =
                     ic00_install_code(canister_id, wasm_module, arg, INITIAL_CYCLES_BALANCE).await;
