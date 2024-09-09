@@ -146,6 +146,47 @@ pub(crate) struct SchedulerImpl {
     fd_factory: Arc<dyn PageAllocatorFileDescriptor>,
 }
 
+#[derive(Default)]
+struct DebugData {
+    rounds: u64,
+    round_time: f64,
+    total_time: f64,
+}
+
+thread_local! {
+    static DEBUG_DATA: RefCell<DebugData> = RefCell::new(Default::default());
+}
+
+fn clear_debug_data() {
+    DEBUG_DATA.with(|data| {
+        data.borrow_mut().rounds = 0;
+        data.borrow_mut().round_time = 0 as f64;
+    });
+}
+
+fn dbg_record_time(time: f64) {
+    DEBUG_DATA.with(|data| {
+        data.borrow_mut().rounds += 1;
+        data.borrow_mut().round_time += time;
+        data.borrow_mut().total_time += time;
+    });
+}
+
+fn get_avg_elapsed_time() -> f64 {
+    DEBUG_DATA.with(|data| {
+        let data = &data.borrow();
+        if data.rounds > 0 {
+            data.round_time / data.rounds as f64
+        } else {
+            0.0
+        }
+    })
+}
+
+fn get_total_time() -> f64 {
+    DEBUG_DATA.with(|data| data.borrow().total_time)
+}
+
 impl SchedulerImpl {
     /// Returns scheduler compute capacity in percent.
     /// For the DTS scheduler, it's `(number of cores - 1) * 100%`
@@ -1461,6 +1502,7 @@ impl Scheduler for SchedulerImpl {
         current_round_type: ExecutionRoundType,
         registry_settings: &RegistryExecutionSettings,
     ) -> ReplicatedState {
+        let total_timer = std::time::Instant::now();
         // IMPORTANT!
         // When making changes to this method, please make sure each piece of code is covered by duration metrics.
         // The goal is to ensure that we can track the performance of `execute_round` and its individual components.
@@ -1757,6 +1799,8 @@ impl Scheduler for SchedulerImpl {
         {
             let _timer = self.metrics.round_finalization_duration.start_timer();
 
+            let canisters_number = state.canisters_iter().count();
+
             let mut final_state;
             {
                 let mut total_canister_balance = Cycles::zero();
@@ -1891,6 +1935,20 @@ impl Scheduler for SchedulerImpl {
                 .update_transactions_total += root_measurement_scope.messages().get();
             final_state.metadata.subnet_metrics.num_canisters =
                 final_state.canister_states.len() as u64;
+
+            dbg_record_time(total_timer.elapsed().as_secs_f64());
+            if current_round.get() % 50 == 0 {
+                println!(
+                    "{},{},{:>0.3},{:>0.3}",
+                    current_round.get(),
+                    canisters_number,
+                    get_avg_elapsed_time(),
+                    get_total_time(),
+                );
+
+                clear_debug_data();
+            }
+
             final_state
         }
     }
