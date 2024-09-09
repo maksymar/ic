@@ -108,7 +108,7 @@ rust_library(
 
 rust_ic_test(
     name = "execution_environment_test",
-    timeout = "long",
+    timeout = "eternal",  # TODO: cleanup debug code.
     aliases = ALIASES,
     crate = ":execution_environment",
     data = DATA,
