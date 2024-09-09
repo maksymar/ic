@@ -149,6 +149,7 @@ pub(crate) struct SchedulerImpl {
 struct DebugData {
     rounds: u64,
     round_time: f64,
+    max_round_time: f64,
     accum_total_time: f64,
     start_time: std::time::Instant,
 }
@@ -158,6 +159,7 @@ impl DebugData {
         Self {
             rounds: 0,
             round_time: 0 as f64,
+            max_round_time: 0 as f64,
             accum_total_time: 0 as f64,
             start_time: std::time::Instant::now(),
         }
@@ -170,20 +172,25 @@ thread_local! {
 
 fn clear_debug_data() {
     DEBUG_DATA.with(|data| {
-        data.borrow_mut().rounds = 0;
-        data.borrow_mut().round_time = 0 as f64;
+        let data = &mut *data.borrow_mut();
+        data.rounds = 0;
+        data.round_time = 0 as f64;
+        data.max_round_time = 0 as f64;
     });
 }
 
 fn dbg_record_time(time: f64) {
     DEBUG_DATA.with(|data| {
-        data.borrow_mut().rounds += 1;
-        data.borrow_mut().round_time += time;
-        data.borrow_mut().accum_total_time += time;
+        let max_round_time = data.borrow().max_round_time.max(time);
+        let data = &mut *data.borrow_mut();
+        data.rounds += 1;
+        data.round_time += time;
+        data.max_round_time = max_round_time;
+        data.accum_total_time += time;
     });
 }
 
-fn get_avg_elapsed_time() -> f64 {
+fn get_avg_round_time() -> f64 {
     DEBUG_DATA.with(|data| {
         let data = &data.borrow();
         if data.rounds > 0 {
@@ -192,6 +199,10 @@ fn get_avg_elapsed_time() -> f64 {
             0.0
         }
     })
+}
+
+fn get_max_round_time() -> f64 {
+    DEBUG_DATA.with(|data| data.borrow().max_round_time)
 }
 
 fn get_accumulated_total_time() -> f64 {
@@ -1952,12 +1963,13 @@ impl Scheduler for SchedulerImpl {
                 final_state.canister_states.len() as u64;
 
             dbg_record_time(total_timer.elapsed().as_secs_f64());
-            if current_round.get() % 100 == 0 {
+            if current_round.get() % 20 == 0 {
                 println!(
-                    "{},{},{:>0.3},{:>0.1},{:>0.1}",
+                    "{},{},{:>0.3},{:>0.3},{:>0.1},{:>0.1}",
                     current_round.get(),
                     canisters_number,
-                    get_avg_elapsed_time(),
+                    get_avg_round_time(),
+                    get_max_round_time(),
                     get_accumulated_total_time(),
                     get_real_total_time(),
                 );
