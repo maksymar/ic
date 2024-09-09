@@ -146,15 +146,26 @@ pub(crate) struct SchedulerImpl {
     fd_factory: Arc<dyn PageAllocatorFileDescriptor>,
 }
 
-#[derive(Default)]
 struct DebugData {
     rounds: u64,
     round_time: f64,
-    total_time: f64,
+    accum_total_time: f64,
+    start_time: std::time::Instant,
+}
+
+impl DebugData {
+    fn new() -> Self {
+        Self {
+            rounds: 0,
+            round_time: 0 as f64,
+            accum_total_time: 0 as f64,
+            start_time: std::time::Instant::now(),
+        }
+    }
 }
 
 thread_local! {
-    static DEBUG_DATA: RefCell<DebugData> = RefCell::new(Default::default());
+    static DEBUG_DATA: RefCell<DebugData> = RefCell::new(DebugData::new());
 }
 
 fn clear_debug_data() {
@@ -168,7 +179,7 @@ fn dbg_record_time(time: f64) {
     DEBUG_DATA.with(|data| {
         data.borrow_mut().rounds += 1;
         data.borrow_mut().round_time += time;
-        data.borrow_mut().total_time += time;
+        data.borrow_mut().accum_total_time += time;
     });
 }
 
@@ -183,8 +194,12 @@ fn get_avg_elapsed_time() -> f64 {
     })
 }
 
-fn get_total_time() -> f64 {
-    DEBUG_DATA.with(|data| data.borrow().total_time)
+fn get_accumulated_total_time() -> f64 {
+    DEBUG_DATA.with(|data| data.borrow().accum_total_time)
+}
+
+fn get_real_total_time() -> f64 {
+    DEBUG_DATA.with(|data| data.borrow().start_time.elapsed().as_secs_f64())
 }
 
 impl SchedulerImpl {
@@ -1937,15 +1952,15 @@ impl Scheduler for SchedulerImpl {
                 final_state.canister_states.len() as u64;
 
             dbg_record_time(total_timer.elapsed().as_secs_f64());
-            if current_round.get() % 50 == 0 {
+            if current_round.get() % 100 == 0 {
                 println!(
-                    "{},{},{:>0.3},{:>0.3}",
+                    "{},{},{:>0.3},{:>0.1},{:>0.1}",
                     current_round.get(),
                     canisters_number,
                     get_avg_elapsed_time(),
-                    get_total_time(),
+                    get_accumulated_total_time(),
+                    get_real_total_time(),
                 );
-
                 clear_debug_data();
             }
 
