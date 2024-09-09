@@ -3,7 +3,7 @@ use ic_state_machine_tests::{Cycles, StateMachineBuilder};
 use ic_test_utilities_execution_environment::{wat_canister, wat_fn};
 
 const NUM_CREATOR_CANISTERS: usize = 10;
-const NUM_CANISTERS_PER_CREATOR_CANISTER: usize = 10;
+const NUM_CANISTERS_PER_CREATOR_CANISTER: usize = 40;
 const STEPS: usize = 5;
 
 fn bytes_to_str(bytes: &[u8]) -> String {
