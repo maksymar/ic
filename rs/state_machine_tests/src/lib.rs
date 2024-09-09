@@ -3052,7 +3052,7 @@ impl StateMachine {
     ) -> Result<WasmResult, UserError> {
         // Largest single message is 1T for system subnet install messages
         // Considered with 2B instruction slices, this gives us 500 ticks
-        const MAX_TICKS: usize = 500;
+        const MAX_TICKS: usize = 5_000;
         let msg_id = self.send_ingress_safe(sender, canister_id, method, payload)?;
         self.await_ingress(msg_id, MAX_TICKS)
     }
