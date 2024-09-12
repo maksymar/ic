@@ -154,6 +154,8 @@ struct DebugData {
     max_round_time: f64,
     subnet_message_time: f64,
     max_subnet_message_time: f64,
+    x_time: f64,
+    max_x_time: f64,
     accum_total_time: f64,
     start_time: std::time::Instant,
 }
@@ -168,6 +170,8 @@ impl DebugData {
             max_round_time: 0 as f64,
             subnet_message_time: 0 as f64,
             max_subnet_message_time: 0 as f64,
+            x_time: 0 as f64,
+            max_x_time: 0 as f64,
             accum_total_time: 0 as f64,
             start_time: std::time::Instant::now(),
         }
@@ -183,11 +187,13 @@ fn dbg_print() {
     let n = dbg_get_canisters_number();
     let avg_r_t = dbg_get_avg_round_time();
     let max_r_t = dbg_get_max_round_time();
-    let avg_sm_t = dbg_get_avg_subnet_message_time();
-    let max_sm_t = dbg_get_max_subnet_message_time();
+    // let avg_sm_t = dbg_get_avg_subnet_message_time();
+    // let max_sm_t = dbg_get_max_subnet_message_time();
+    let avg_x_t = dbg_get_avg_x_time();
+    let max_x_t = dbg_get_max_x_time();
     let acc_t = dbg_get_accumulated_total_time();
     let tot_t = dbg_get_real_total_time();
-    println!("{id},{n},{avg_r_t:>0.3},{max_r_t:>0.3},{avg_sm_t:>0.3},{max_sm_t:>0.3},{acc_t:>0.1},{tot_t:>0.1}");
+    println!("{id},{n},{avg_r_t:>0.3},{max_r_t:>0.3},{avg_x_t:>0.3},{max_x_t:>0.3},{acc_t:>0.1},{tot_t:>0.1}");
     dbg_clear_data();
 }
 
@@ -199,6 +205,8 @@ fn dbg_clear_data() {
         data.max_round_time = 0 as f64;
         data.subnet_message_time = 0 as f64;
         data.max_subnet_message_time = 0 as f64;
+        data.x_time = 0 as f64;
+        data.max_x_time = 0 as f64;
     });
 }
 
@@ -248,6 +256,7 @@ fn dbg_get_max_round_time() -> f64 {
     DEBUG_DATA.with(|data| data.borrow().max_round_time)
 }
 
+#[allow(dead_code)]
 fn dbg_record_subnet_message_time(time: f64) {
     DEBUG_DATA.with(|data| {
         let max_time = data.borrow().max_subnet_message_time.max(time);
@@ -257,6 +266,7 @@ fn dbg_record_subnet_message_time(time: f64) {
     });
 }
 
+#[allow(dead_code)]
 fn dbg_get_avg_subnet_message_time() -> f64 {
     DEBUG_DATA.with(|data| {
         let data = &data.borrow();
@@ -268,8 +278,36 @@ fn dbg_get_avg_subnet_message_time() -> f64 {
     })
 }
 
+#[allow(dead_code)]
 fn dbg_get_max_subnet_message_time() -> f64 {
     DEBUG_DATA.with(|data| data.borrow().max_subnet_message_time)
+}
+
+#[allow(dead_code)]
+pub fn dbg_record_x_time(time: f64) {
+    DEBUG_DATA.with(|data| {
+        let max_time = data.borrow().max_x_time.max(time);
+        let data = &mut *data.borrow_mut();
+        data.x_time += time;
+        data.max_x_time = max_time;
+    });
+}
+
+#[allow(dead_code)]
+fn dbg_get_avg_x_time() -> f64 {
+    DEBUG_DATA.with(|data| {
+        let data = &data.borrow();
+        if data.rounds > 0 {
+            data.x_time / data.rounds as f64
+        } else {
+            0.0
+        }
+    })
+}
+
+#[allow(dead_code)]
+fn dbg_get_max_x_time() -> f64 {
+    DEBUG_DATA.with(|data| data.borrow().max_x_time)
 }
 
 fn dbg_get_accumulated_total_time() -> f64 {
@@ -1861,6 +1899,7 @@ impl Scheduler for SchedulerImpl {
             round_schedule_candidate
         };
 
+        dbg_record_x_time(dbg_timer.elapsed().as_secs_f64());
         // Inner round.
         let (mut state, active_canister_ids) = self.inner_round(
             state,
