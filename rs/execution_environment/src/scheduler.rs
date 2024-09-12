@@ -197,6 +197,8 @@ fn dbg_clear_data() {
         data.rounds = 0;
         data.round_time = 0 as f64;
         data.max_round_time = 0 as f64;
+        data.subnet_message_time = 0 as f64;
+        data.max_subnet_message_time = 0 as f64;
     });
 }
 
