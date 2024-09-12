@@ -60,7 +60,7 @@ fn test_fun_spinup() {
             .heartbeat(
                 wat_fn()
                     .debug_print(b"hi!")
-                    .wait(10_000)
+                    .wait(50_000)
                     .debug_print(b"bye!"),
             )
             .build_wasm();

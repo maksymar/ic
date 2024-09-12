@@ -147,6 +147,8 @@ pub(crate) struct SchedulerImpl {
 }
 
 struct DebugData {
+    current_round: u64,
+    canisters_number: usize,
     rounds: u64,
     round_time: f64,
     max_round_time: f64,
@@ -157,6 +159,8 @@ struct DebugData {
 impl DebugData {
     fn new() -> Self {
         Self {
+            current_round: 0,
+            canisters_number: 0,
             rounds: 0,
             round_time: 0 as f64,
             max_round_time: 0 as f64,
@@ -170,13 +174,46 @@ thread_local! {
     static DEBUG_DATA: RefCell<DebugData> = RefCell::new(DebugData::new());
 }
 
-fn clear_debug_data() {
+fn dbg_print() {
+    println!(
+        "{},{},{:>0.3},{:>0.3},{:>0.1},{:>0.1}",
+        dbg_get_current_round(),
+        dbg_get_canisters_number(),
+        dbg_get_avg_round_time(),
+        dbg_get_max_round_time(),
+        dbg_get_accumulated_total_time(),
+        dbg_get_real_total_time(),
+    );
+    dbg_clear_data();
+}
+
+fn dbg_clear_data() {
     DEBUG_DATA.with(|data| {
         let data = &mut *data.borrow_mut();
         data.rounds = 0;
         data.round_time = 0 as f64;
         data.max_round_time = 0 as f64;
     });
+}
+
+fn dbg_record_current_round(current_round: u64) {
+    DEBUG_DATA.with(|data| {
+        data.borrow_mut().current_round = current_round;
+    });
+}
+
+fn dbg_get_current_round() -> u64 {
+    DEBUG_DATA.with(|data| data.borrow().current_round)
+}
+
+fn dbg_record_canisters_number(canisters_number: usize) {
+    DEBUG_DATA.with(|data| {
+        data.borrow_mut().canisters_number = canisters_number;
+    });
+}
+
+fn dbg_get_canisters_number() -> usize {
+    DEBUG_DATA.with(|data| data.borrow().canisters_number)
 }
 
 fn dbg_record_time(time: f64) {
@@ -190,7 +227,7 @@ fn dbg_record_time(time: f64) {
     });
 }
 
-fn get_avg_round_time() -> f64 {
+fn dbg_get_avg_round_time() -> f64 {
     DEBUG_DATA.with(|data| {
         let data = &data.borrow();
         if data.rounds > 0 {
@@ -201,15 +238,15 @@ fn get_avg_round_time() -> f64 {
     })
 }
 
-fn get_max_round_time() -> f64 {
+fn dbg_get_max_round_time() -> f64 {
     DEBUG_DATA.with(|data| data.borrow().max_round_time)
 }
 
-fn get_accumulated_total_time() -> f64 {
+fn dbg_get_accumulated_total_time() -> f64 {
     DEBUG_DATA.with(|data| data.borrow().accum_total_time)
 }
 
-fn get_real_total_time() -> f64 {
+fn dbg_get_real_total_time() -> f64 {
     DEBUG_DATA.with(|data| data.borrow().start_time.elapsed().as_secs_f64())
 }
 
@@ -1963,17 +2000,10 @@ impl Scheduler for SchedulerImpl {
                 final_state.canister_states.len() as u64;
 
             dbg_record_time(total_timer.elapsed().as_secs_f64());
+            dbg_record_current_round(current_round.get());
+            dbg_record_canisters_number(canisters_number);
             if current_round.get() % 20 == 0 {
-                println!(
-                    "{},{},{:>0.3},{:>0.3},{:>0.1},{:>0.1}",
-                    current_round.get(),
-                    canisters_number,
-                    get_avg_round_time(),
-                    get_max_round_time(),
-                    get_accumulated_total_time(),
-                    get_real_total_time(),
-                );
-                clear_debug_data();
+                dbg_print();
             }
 
             final_state
