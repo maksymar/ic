@@ -152,6 +152,8 @@ struct DebugData {
     rounds: u64,
     round_time: f64,
     max_round_time: f64,
+    subnet_message_time: f64,
+    max_subnet_message_time: f64,
     accum_total_time: f64,
     start_time: std::time::Instant,
 }
@@ -164,6 +166,8 @@ impl DebugData {
             rounds: 0,
             round_time: 0 as f64,
             max_round_time: 0 as f64,
+            subnet_message_time: 0 as f64,
+            max_subnet_message_time: 0 as f64,
             accum_total_time: 0 as f64,
             start_time: std::time::Instant::now(),
         }
@@ -175,15 +179,15 @@ thread_local! {
 }
 
 fn dbg_print() {
-    println!(
-        "{},{},{:>0.3},{:>0.3},{:>0.1},{:>0.1}",
-        dbg_get_current_round(),
-        dbg_get_canisters_number(),
-        dbg_get_avg_round_time(),
-        dbg_get_max_round_time(),
-        dbg_get_accumulated_total_time(),
-        dbg_get_real_total_time(),
-    );
+    let id = dbg_get_current_round();
+    let n = dbg_get_canisters_number();
+    let avg_r_t = dbg_get_avg_round_time();
+    let max_r_t = dbg_get_max_round_time();
+    let avg_sm_t = dbg_get_avg_subnet_message_time();
+    let max_sm_t = dbg_get_max_subnet_message_time();
+    let acc_t = dbg_get_accumulated_total_time();
+    let tot_t = dbg_get_real_total_time();
+    println!("{id},{n},{avg_r_t:>0.3},{max_r_t:>0.3},{avg_sm_t:>0.3},{max_sm_t:>0.3},{acc_t:>0.1},{tot_t:>0.1}");
     dbg_clear_data();
 }
 
@@ -218,11 +222,11 @@ fn dbg_get_canisters_number() -> usize {
 
 fn dbg_record_time(time: f64) {
     DEBUG_DATA.with(|data| {
-        let max_round_time = data.borrow().max_round_time.max(time);
+        let max_time = data.borrow().max_round_time.max(time);
         let data = &mut *data.borrow_mut();
         data.rounds += 1;
         data.round_time += time;
-        data.max_round_time = max_round_time;
+        data.max_round_time = max_time;
         data.accum_total_time += time;
     });
 }
@@ -240,6 +244,30 @@ fn dbg_get_avg_round_time() -> f64 {
 
 fn dbg_get_max_round_time() -> f64 {
     DEBUG_DATA.with(|data| data.borrow().max_round_time)
+}
+
+fn dbg_record_subnet_message_time(time: f64) {
+    DEBUG_DATA.with(|data| {
+        let max_time = data.borrow().max_subnet_message_time.max(time);
+        let data = &mut *data.borrow_mut();
+        data.subnet_message_time += time;
+        data.max_subnet_message_time = max_time;
+    });
+}
+
+fn dbg_get_avg_subnet_message_time() -> f64 {
+    DEBUG_DATA.with(|data| {
+        let data = &data.borrow();
+        if data.rounds > 0 {
+            data.subnet_message_time / data.rounds as f64
+        } else {
+            0.0
+        }
+    })
+}
+
+fn dbg_get_max_subnet_message_time() -> f64 {
+    DEBUG_DATA.with(|data| data.borrow().max_subnet_message_time)
 }
 
 fn dbg_get_accumulated_total_time() -> f64 {
@@ -649,6 +677,7 @@ impl SchedulerImpl {
         measurement_scope: &MeasurementScope,
         idkg_subnet_public_keys: &BTreeMap<MasterPublicKeyId, MasterPublicKey>,
     ) -> (ReplicatedState, Option<NumInstructions>) {
+        let dbg_timer = std::time::Instant::now();
         let instruction_limits = get_instructions_limits_for_subnet_message(
             self.deterministic_time_slicing,
             &self.config,
@@ -669,6 +698,9 @@ impl SchedulerImpl {
             as_num_instructions(instructions_before - round_limits.instructions);
         let messages = NumMessages::from(message_instructions.map(|_| 1).unwrap_or(0));
         measurement_scope.add(round_instructions_executed, NumSlices::from(1), messages);
+
+        dbg_record_subnet_message_time(dbg_timer.elapsed().as_secs_f64());
+
         (new_state, message_instructions)
     }
 
@@ -1565,7 +1597,7 @@ impl Scheduler for SchedulerImpl {
         current_round_type: ExecutionRoundType,
         registry_settings: &RegistryExecutionSettings,
     ) -> ReplicatedState {
-        let total_timer = std::time::Instant::now();
+        let dbg_timer = std::time::Instant::now();
         // IMPORTANT!
         // When making changes to this method, please make sure each piece of code is covered by duration metrics.
         // The goal is to ensure that we can track the performance of `execute_round` and its individual components.
@@ -1999,7 +2031,7 @@ impl Scheduler for SchedulerImpl {
             final_state.metadata.subnet_metrics.num_canisters =
                 final_state.canister_states.len() as u64;
 
-            dbg_record_time(total_timer.elapsed().as_secs_f64());
+            dbg_record_time(dbg_timer.elapsed().as_secs_f64());
             dbg_record_current_round(current_round.get());
             dbg_record_canisters_number(canisters_number);
             if current_round.get() % 20 == 0 {
